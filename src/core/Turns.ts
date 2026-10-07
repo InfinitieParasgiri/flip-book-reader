@@ -5,7 +5,7 @@ import type { Corner, Point } from "./foldGeometry.js";
 import { Renderer, type PreparedPages } from "./Renderer.js";
 
 type Context = { page: number; count: number; spread: 1 | 2; size: PageSize; zoom: number; rtl: boolean; reducedMotion: boolean; duration: number };
-type Turn = { target: number; prepared: PreparedPages; sheet?: FlipSheet; controller: AbortController; start?: Point; started: number; maxProgress: number; finishing: boolean };
+type Turn = { target: number; prepared: PreparedPages; sheet?: FlipSheet; controller: AbortController; start?: Point; startLocalX?: number; started: number; maxProgress: number; finishing: boolean };
 export class Turns {
   private current?: Turn;
   private queued?: { target: number; resolve(): void };
@@ -47,17 +47,26 @@ export class Turns {
     // Include the visible border and a small grab area around each outer corner.
     const tolerance = Math.min(24, width * .1, rect.height * .1);
     if (x < -tolerance || x > rect.width + tolerance || y < -tolerance || y > rect.height + tolerance) return false;
-    const right = x >= (context.spread === 2 ? width : width / 2), localX = right ? x - (rect.width - width) : width - x;
-    if (localX < width * .65 || (y > rect.height * .25 && y < rect.height * .75)) return false;
+    // Allow drag from the right half (forward) or left half (backward).
+    const right = x >= (context.spread === 2 ? width : width / 2);
+    // Accept any point in the respective half — no localX or vertical restriction.
     const forward = right !== context.rtl, target = spreadStart(context.page + (forward ? context.spread : -context.spread), context.count, context.spread);
     if (target === context.page) return false;
-    const turn = this.begin(target, y < rect.height / 2 ? "top" : "bottom"); turn.start = point;
+    // Corner is determined by where on the page the drag starts (top vs bottom half).
+    const corner = y < rect.height / 2 ? "top" : "bottom";
+    const turn = this.begin(target, corner); turn.start = point;
+    // Compute initial fold x in page-local space (mirrors sheet coordinate system).
+    if (turn.sheet) {
+      const localX = right ? x - (rect.width - turn.sheet.width) : turn.sheet.width - x;
+      turn.startLocalX = Math.max(0, Math.min(turn.sheet.width, localX));
+    }
     return Boolean(turn.sheet);
   }
   moveDrag(point: Point) {
     const turn = this.current; if (!turn?.sheet || !turn.start || turn.finishing) return;
     const sheet = turn.sheet;
-    sheet.update({ x: sheet.width + (point.x - turn.start.x) * (sheet.right ? 1 : -1),
+    const originX = turn.startLocalX ?? sheet.width;
+    sheet.update({ x: originX + (point.x - turn.start.x) * (sheet.right ? 1 : -1),
       y: (sheet.corner === "top" ? 0 : sheet.height) + point.y - turn.start.y });
     turn.maxProgress = Math.max(turn.maxProgress, sheet.progress);
   }
