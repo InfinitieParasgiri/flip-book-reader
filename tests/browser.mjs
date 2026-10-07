@@ -10,9 +10,28 @@ try {
   await page.goto(base); await page.waitForFunction(() => window.readerState?.spread === 2 && document.querySelectorAll('.br-page[aria-busy=false]').length === 2);
   const button = name => page.getByRole('button', { name, exact: true });
   await button('Next page').click(); await page.waitForFunction(() => document.querySelector('.br-sheet'));
-  assert.equal(await page.locator('.br-sheet-face').count(), 2);
+  assert.equal(await page.locator('.br-fold-front, .br-fold-back').count(), 2);
   await page.waitForFunction(() => window.readerState.page === 2 && !window.readerState.turning);
   await button('Previous page').click(); await page.waitForFunction(() => window.readerState.page === 0 && !window.readerState.turning);
+  // Drag must alter the crease while held, before navigation commits.
+  const rect = await page.locator('.br-stage').boundingBox();
+  await page.mouse.move(rect.x + rect.width - 3, rect.y + 3); await page.mouse.down();
+  await page.mouse.move(rect.x + rect.width * .68, rect.y + rect.height * .18, { steps: 8 });
+  await page.waitForFunction(() => Number(document.querySelector('.br-fold')?.dataset.progress) > .1);
+  assert.equal(await page.evaluate(() => window.readerState.page), 0);
+  assert.match(await page.locator('.br-fold-front').evaluate(node => node.style.clipPath), /polygon/);
+  await page.screenshot({ path: '/tmp/book-reader-live-corner.png' });
+  await page.mouse.up(); await page.waitForFunction(() => window.readerState.page === 2 && !window.readerState.turning);
+  await button('Previous page').click(); await page.waitForFunction(() => window.readerState.page === 0 && !window.readerState.turning);
+  // A slow partial pull snaps back, preserving the current spread.
+  await page.mouse.move(rect.x + rect.width - 3, rect.y + rect.height - 3); await page.mouse.down();
+  await page.mouse.move(rect.x + rect.width - 70, rect.y + rect.height - 30, { steps: 5 });
+  await page.waitForTimeout(320); await page.mouse.up();
+  await page.waitForFunction(() => !window.readerState.turning); assert.equal(await page.evaluate(() => window.readerState.page), 0);
+  // Two quick requests preserve one pending turn.
+  await page.evaluate(() => { void window.bookReader.next(); void window.bookReader.next(); });
+  await page.waitForFunction(() => window.readerState.page === 4 && !window.readerState.turning);
+  await page.evaluate(() => window.bookReader.goTo(0));
   await button('Zoom in').click(); await page.waitForFunction(() => window.readerState.zoom === 1.25);
   await button('Page thumbnails').click(); await page.waitForFunction(() => document.querySelector('.br-thumbnails canvas, .br-thumbnails .br-html-page'));
   assert.ok(await page.locator('.br-thumbnails button').count() <= 24);

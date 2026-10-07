@@ -37,11 +37,11 @@ from this repository:
 npm pack
 ```
 
-This builds the package and produces `infinitie-book-reader-0.1.0.tgz`. In your
+This builds the package and produces `infinitie-book-reader-0.2.0.tgz`. In your
 application folder, install that archive using its actual location:
 
 ```sh
-npm install /absolute/path/to/infinitie-book-reader-0.1.0.tgz
+npm install /absolute/path/to/infinitie-book-reader-0.2.0.tgz
 ```
 
 The following examples assume a browser application with a bundler, such as Next.js
@@ -211,7 +211,7 @@ zoom are supported. RTL reverses navigation and animation.
 | `title` | Optional reader title |
 | `initialPage` | `0`; zero-based page index |
 | `spreadBreakpoint` | `760`; viewport width for two-page mode |
-| `animationDuration` | `650`; milliseconds per page turn |
+| `animationDuration` | `350`; milliseconds per full page turn |
 | `reducedMotion` | Uses the system preference when omitted |
 | `autoTurnSeconds` | `5`; interval from 1 to 3600 seconds; initially off |
 | `language` / `direction` | `en` / `ltr`; use `rtl` when needed |
@@ -263,14 +263,16 @@ its own `languages/en.json`; that file is not required by this standalone reposi
 
 ## Performance and current limits
 
-- Four cached page entries; PDF canvases capped at four million pixels each.
+- Six cached page entries; adjacent spreads are prepared in the background at normal zoom. PDF canvases are capped at four million pixels each.
 - Thumbnail windows contain up to 24 pages with two concurrent preview renders;
   offscreen previews are discarded.
 - Closing/resize cancels obsolete work. A PDF starts loading when its source is created.
-- Version 0.1 uses a rigid 3D sheet animation, without flexible paper curling.
+- Version 0.2 follows top/bottom corner dragging with a clipped, reflected fold and moving shadows. This is a paper-fold illusion, not a physical paper mesh simulation.
+- Page turns animate immediately while uncached destination pages load. Current pages stay visible during the turn; one pending navigation request is retained for rapid input.
+- Partial slow drags snap back; corner clicks and sufficient drags complete the turn.
 - PDFs render to canvas. Selectable/searchable PDF text, annotations, printing and
   DRM are not implemented.
-- Browsers must support ResizeObserver, Web Animations, CSS 3D transforms and
+- Browsers must support ResizeObserver, Pointer Events, requestAnimationFrame, CSS clip-path and
   JavaScript modules. Fullscreen/share availability depends on the browser/context.
 
 ## Tests and packaging
@@ -289,6 +291,9 @@ npm run test:browser
 ```
 
 Add `BOOK_READER_TEST_PDF=1` when the demo has PDF.js and a sample PDF configured.
+The browser suite also verifies all four directional corner folds, pinch zoom, slow-source animation, bounded preloading, resize cancellation and disposal.
+
+Version 0.2 includes a `prepare` build script for installing directly from a Git commit after uploading the source. Pin the commit in your consuming app to make installs reproducible.
 
 The package is currently `private` and `UNLICENSED`. Git upload does not publish it
 to npm. Before public distribution, choose a license; before npm publishing, also

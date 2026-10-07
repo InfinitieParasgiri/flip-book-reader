@@ -7,7 +7,7 @@ import { Gestures } from "./core/Gestures.js";
 import { Thumbnails } from "./core/Thumbnails.js";
 import { AutoTurn } from "./core/AutoTurn.js";
 import { buttonLabel } from "./core/icons.js";
-import { animateFlip } from "./core/flip.js";
+import { Turns } from "./core/Turns.js";
 
 export class BookReader {
   private view: ReaderView;
@@ -17,7 +17,7 @@ export class BookReader {
   private auto: AutoTurn;
   private observer: ResizeObserver;
   private events = new AbortController();
-  private animation = new AbortController();
+  private turns: Turns;
   private motion = matchMedia("(prefers-reduced-motion: reduce)");
   private size: PageSize = { width: 1, height: 1 };
   private page = 0;
@@ -26,7 +26,6 @@ export class BookReader {
   private turning = false;
   private interacting = false;
   private destroyed = false;
-  private layoutVersion = 0;
   private zoomTimer?: ReturnType<typeof setTimeout>;
   private resizeFrame = 0;
   constructor(host: HTMLElement, private source: PageSource, private options: ReaderOptions = {}) {
@@ -41,8 +40,13 @@ export class BookReader {
       () => !this.destroyed && !this.turning && !this.interacting && this.zoom === 1 && !document.hidden,
       () => this.state.endPage >= source.pageCount - 1, () => this.next(), () => this.notify());
     this.thumbs = new Thumbnails(this.view.strip, source, labels, index => { void this.goTo(index); });
+    this.turns = new Turns(this.view.stage, this.renderer, () => ({ page: this.page, count: source.pageCount, spread: this.spread,
+      size: this.size, zoom: this.zoom, rtl: options.direction === "rtl", reducedMotion: options.reducedMotion ?? this.motion.matches,
+      duration: options.animationDuration ?? 350 }), turning => { this.turning = turning; this.notify(); this.auto.reset(); },
+      page => { this.page = page; this.thumbs.show(page); this.view.viewport.scrollTo(0, 0); this.warm(); });
     this.gestures = new Gestures(this.view.viewport, () => this.zoom, value => this.setZoom(value),
-      forward => { void (forward ? this.next() : this.previous()); }, active => { this.interacting = active; this.auto.reset(); }, options.direction === "rtl");
+      forward => { void (forward ? this.next() : this.previous()); }, active => { this.interacting = active; this.auto.reset(); }, options.direction === "rtl", { begin: point => this.turns.beginDrag(point),
+        move: point => this.turns.moveDrag(point), end: (commit, immediate) => this.turns.endDrag(commit, immediate) });
     this.page = spreadStart(options.initialPage ?? 0, source.pageCount, 1);
     host.append(this.view.root);
     this.observer = new ResizeObserver(() => {
@@ -69,11 +73,11 @@ export class BookReader {
     const spread = viewport.clientWidth >= (this.options.spreadBreakpoint ?? 760) ? 2 : 1;
     const size = fitPages(viewport.clientWidth, viewport.clientHeight, this.source.size, spread);
     if (spread === this.spread && Math.abs(size.width - this.size.width) < 1 && Math.abs(size.height - this.size.height) < 1) return;
-    this.layoutVersion++; this.animation.abort(); this.renderer.invalidate(); this.turning = false;
+    this.turns.cancel(); this.renderer.invalidate(true); this.turning = false;
     this.spread = spread; this.size = size; this.page = spreadStart(this.page, this.source.pageCount, spread);
     this.dimensions(); this.notify(); this.auto.reset();
     await this.renderer.pages(visiblePages(this.page, this.source.pageCount, spread), size, this.zoom);
-    if (!this.destroyed) this.thumbs.show(this.page);
+    if (!this.destroyed) { this.thumbs.show(this.page); this.warm(); }
   }
   private dimensions() {
     this.view.stage.style.width = `${this.size.width * this.spread * this.zoom}px`;
@@ -81,32 +85,21 @@ export class BookReader {
     this.view.stage.style.setProperty("--br-spread", String(this.spread));
     this.view.viewport.classList.toggle("br-zoomed", this.zoom > 1);
   }
-  next() { return this.goTo(this.page + this.spread); }
-  previous() { return this.goTo(this.page - this.spread); }
-  async goTo(index: number) {
-    if (this.destroyed || this.turning) return;
-    const target = spreadStart(index, this.source.pageCount, this.spread);
-    if (target === this.page) return;
-    const version = this.layoutVersion;
-    const old = [...this.view.stage.children] as HTMLElement[];
-    const forward = target > this.page; this.turning = true; this.auto.reset(); this.notify();
-    this.animation = new AbortController(); const signal = this.animation.signal;
-    try {
-      const pages = await this.renderer.pages(visiblePages(target, this.source.pageCount, this.spread), this.size, this.zoom);
-      if (this.destroyed || version !== this.layoutVersion || signal.aborted) return;
-      const reduce = this.options.reducedMotion ?? this.motion.matches;
-      await animateFlip(this.view.stage, old, pages, forward, this.options.direction === "rtl", this.spread,
-        reduce || this.zoom > 1 ? 0 : this.options.animationDuration ?? 650, signal);
-      if (this.destroyed || version !== this.layoutVersion || signal.aborted) return;
-      this.page = target; this.thumbs.show(this.page); this.view.viewport.scrollTo(0, 0);
-    } catch (error) { this.options.onError?.(error); }
-    finally { if (version === this.layoutVersion && !this.destroyed) { this.turning = false; this.notify(); this.auto.reset(); } }
+  private warm() {
+    if (this.destroyed) return;
+    const indices = [this.page - this.spread, this.page + this.spread]
+      .filter(page => page >= 0 && page < this.source.pageCount)
+      .flatMap(page => visiblePages(page, this.source.pageCount, this.spread));
+    this.renderer.warm(indices, this.size, this.zoom);
   }
+  next() { return this.destroyed ? Promise.resolve() : this.turns.next(); }
+  previous() { return this.destroyed ? Promise.resolve() : this.turns.previous(); }
+  goTo(index: number) { return this.destroyed ? Promise.resolve() : this.turns.goTo(index); }
   setZoom(value: number) {
     if (this.destroyed || this.turning) return;
     const zoom = clampZoom(value); if (zoom === this.zoom) return;
-    this.zoom = zoom; this.dimensions(); this.notify(); this.auto.reset(); clearTimeout(this.zoomTimer);
-    this.zoomTimer = setTimeout(() => { if (!this.destroyed && !this.turning) void this.renderer.pages(visiblePages(this.page, this.source.pageCount, this.spread), this.size, this.zoom); }, 180);
+    this.renderer.invalidate(true); this.zoom = zoom; this.dimensions(); this.notify(); this.auto.reset(); clearTimeout(this.zoomTimer);
+    this.zoomTimer = setTimeout(() => { if (!this.destroyed && !this.turning) void this.renderer.pages(visiblePages(this.page, this.source.pageCount, this.spread), this.size, this.zoom).then(() => this.warm()); }, 180);
   }
   setAutoTurn(enabled: boolean, seconds?: number) { if (this.destroyed) return; if (seconds !== undefined) this.auto.setInterval(seconds); this.auto.setEnabled(enabled); }
   private key = (event: KeyboardEvent) => {
@@ -152,7 +145,7 @@ export class BookReader {
   }
   destroy() {
     if (this.destroyed) return; this.destroyed = true;
-    this.events.abort(); this.animation.abort(); this.auto.destroy(); this.observer.disconnect();
+    this.events.abort(); this.turns.cancel(); this.auto.destroy(); this.observer.disconnect();
     cancelAnimationFrame(this.resizeFrame); clearTimeout(this.zoomTimer); this.gestures.destroy(); this.thumbs.clear(); this.renderer.destroy(); this.view.root.remove();
   }
 }

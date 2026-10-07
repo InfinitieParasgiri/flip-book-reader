@@ -49,8 +49,8 @@ export class ReaderView {
     this.counter.textContent = formatLabel(this.labels.pageCounter, { start: state.page + 1, end: state.endPage + 1, total: state.pageCount });
     this.pageInput.value = String(state.page + 1); this.pageInput.max = String(state.pageCount);
     this.pageInput.disabled = state.turning;
-    this.buttons.get("previous")!.disabled = state.turning || state.page === 0;
-    this.buttons.get("next")!.disabled = state.turning || state.endPage >= state.pageCount - 1;
+    this.buttons.get("previous")!.disabled = !state.turning && state.page === 0;
+    this.buttons.get("next")!.disabled = !state.turning && state.endPage >= state.pageCount - 1;
     this.buttons.get("zoomOut")!.disabled = state.zoom <= 1 || state.turning;
     this.buttons.get("zoomIn")!.disabled = state.zoom >= 3 || state.turning;
     const autoplay = this.buttons.get("autoplay")!;

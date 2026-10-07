@@ -1,6 +1,6 @@
 {
   "name": "@infinitie/book-reader",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Independent animated book reader with optional PDF rendering and a React adapter",
   "type": "module",
   "private": true,
@@ -28,7 +28,8 @@
     "test": "npm run build && node --test tests/*.test.mjs",
     "demo": "npm run build && node scripts/demo-server.mjs",
     "prepack": "npm run build",
-    "test:browser": "node tests/browser.mjs"
+    "test:browser": "node tests/browser.mjs && node tests/corners.browser.mjs && node tests/loading.browser.mjs",
+    "prepare": "npm run build"
   },
   "peerDependencies": {
     "react": ">=18 <20"
