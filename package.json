@@ -28,7 +28,7 @@
     "test": "npm run build && node --test tests/*.test.mjs",
     "demo": "npm run build && node scripts/demo-server.mjs",
     "prepack": "npm run build",
-    "test:browser": "node tests/browser.mjs && node tests/corners.browser.mjs && node tests/loading.browser.mjs",
+    "test:browser": "node tests/browser.mjs && node tests/corners.browser.mjs && node tests/loading.browser.mjs && node tests/interrupted-drag.browser.mjs",
     "prepare": "npm run build"
   },
   "peerDependencies": {

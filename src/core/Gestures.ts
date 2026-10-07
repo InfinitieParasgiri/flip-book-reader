@@ -16,6 +16,8 @@ export class Gestures {
   constructor(private viewport: HTMLElement, private zoom: () => number, private setZoom: (zoom: number) => void,
     private turn: (forward: boolean) => void, private active: (active: boolean) => void, private rtl: boolean, private fold: FoldGesture) {
     const options = { signal: this.controller.signal };
+    window.addEventListener("blur", this.reset, options);
+    document.addEventListener("visibilitychange", () => { if (document.hidden) this.reset(); }, options);
     viewport.addEventListener("pointerdown", this.down, options); viewport.addEventListener("pointermove", this.move, options);
     viewport.addEventListener("pointerup", this.up, options); viewport.addEventListener("pointercancel", this.cancel, options);
     viewport.addEventListener("lostpointercapture", this.cancel, options); viewport.addEventListener("wheel", this.wheel, { ...options, passive: false });
@@ -67,6 +69,12 @@ export class Gestures {
       cancelAnimationFrame(this.frame); this.frame = 0;
       this.start = this.previous = this.latest = undefined; this.active(false);
     }
+  };
+  private reset = () => {
+    if (this.folding) this.fold.end(false, true);
+    this.folding = false; this.moved = true;
+    cancelAnimationFrame(this.frame); this.frame = 0; this.points.clear();
+    this.start = this.previous = this.latest = undefined; this.active(false);
   };
   private wheel = (event: WheelEvent) => {
     if (!event.ctrlKey && !event.metaKey) return;

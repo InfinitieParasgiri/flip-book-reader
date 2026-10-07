@@ -11,9 +11,13 @@ export class Turns {
   private queued?: { target: number; resolve(): void };
   constructor(private stage: HTMLElement, private renderer: Renderer, private context: () => Context,
     private changed: (turning: boolean) => void, private commit: (page: number) => void) {}
-  next() { const context = this.context(); return this.goTo((this.current?.target ?? context.page) + context.spread); }
-  previous() { const context = this.context(); return this.goTo((this.current?.target ?? context.page) - context.spread); }
+  next() { const context = this.context(); return this.goTo((this.current?.finishing ? this.current.target : context.page) + context.spread); }
+  previous() { const context = this.context(); return this.goTo((this.current?.finishing ? this.current.target : context.page) - context.spread); }
   async goTo(index: number): Promise<void> {
+    if (this.current?.start && !this.current.finishing) {
+      await this.finish(this.current, false, true);
+      return this.goTo(index);
+    }
     const context = this.context(), target = spreadStart(index, context.count, context.spread);
     if (this.current) {
       if (target === this.current.target) return;
