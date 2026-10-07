@@ -268,8 +268,9 @@ its own `languages/en.json`; that file is not required by this standalone reposi
   offscreen previews are discarded.
 - Closing/resize cancels obsolete work. A PDF starts loading when its source is created.
 - Version 0.2 follows top/bottom corner dragging with a clipped, reflected fold and moving shadows. This is a paper-fold illusion, not a physical paper mesh simulation.
+- Zoom retains the current readable spread while sharper pages render offscreen; stale zoom results are discarded. The host can size PDF canvases to their page containers for immediate visual scaling.
 - Page turns animate immediately while uncached destination pages load. Current pages stay visible during the turn; one pending navigation request is retained for rapid input.
-- Partial slow drags snap back; corner clicks and sufficient drags complete the turn.
+- Partial slow drags snap back; corner clicks and sufficient drags complete the turn. Corner grab areas include up to 24 pixels around the outer edge, scaled down for small pages.
 - PDFs render to canvas. Selectable/searchable PDF text, annotations, printing and
   DRM are not implemented.
 - Browsers must support ResizeObserver, Pointer Events, requestAnimationFrame, CSS clip-path and
@@ -291,6 +292,7 @@ npm run test:browser
 ```
 
 Add `BOOK_READER_TEST_PDF=1` when the demo has PDF.js and a sample PDF configured.
+Use the same environment variables with `node tests/zoom.browser.mjs` to check slow zoom rendering, repeated zoom and disposal.
 The browser suite also verifies all four directional corner folds, pinch zoom, slow-source animation, bounded preloading, resize cancellation and disposal.
 
 Version 0.2 includes a `prepare` build script for installing directly from a Git commit after uploading the source. Pin the commit in your consuming app to make installs reproducible.

@@ -2,7 +2,7 @@ import type { PageSource, PageSize } from "../types.js";
 import { PageCache, snapshot } from "./PageCache.js";
 import { ReaderView } from "./View.js";
 
-export type PreparedPages = { pages: HTMLElement[]; ready: Promise<void> };
+export type PreparedPages = { pages: HTMLElement[]; ready: Promise<void>; isCurrent(): boolean };
 export class Renderer {
   private cache: PageCache;
   private generation = 0;
@@ -29,7 +29,7 @@ export class Renderer {
       };
       await load();
     })).then(() => {});
-    return { pages, ready };
+    return { pages, ready, isCurrent: () => generation === this.generation };
   }
   mount(pages: HTMLElement[]) { this.view.stage.replaceChildren(...pages); }
   pages(indices: number[], size: PageSize, zoom: number): Promise<void> {

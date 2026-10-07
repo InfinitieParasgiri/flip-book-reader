@@ -6,11 +6,11 @@ try {
  for (const rtl of [false, true]) {
   await page.goto(`${process.env.BOOK_READER_DEMO_URL}${rtl ? '?rtl=1' : ''}`);
   await page.waitForFunction(() => window.readerState?.spread === 2 && document.querySelectorAll('.br-stage > .br-page[aria-busy=false]').length === 2);
-  for (const forward of [true, false]) {
+  for (const corner of ['top', 'bottom']) for (const forward of [true, false]) {
    const rect = await page.locator('.br-stage').boundingBox(), right = forward !== rtl;
-   const x = right ? rect.x + rect.width - 2 : rect.x + 2, y = forward ? rect.y + 2 : rect.y + rect.height - 2;
+   const x = right ? rect.x + rect.width + 6 : rect.x - 6, y = corner === 'top' ? rect.y - 6 : rect.y + rect.height + 6;
    await page.mouse.move(x, y); await page.mouse.down();
-   await page.mouse.move(x + (right ? -1 : 1) * rect.width * .27, y + (forward ? 1 : -1) * rect.height * .16, { steps: 8 });
+   await page.mouse.move(x + (right ? -1 : 1) * rect.width * .27, y + (corner === 'top' ? 1 : -1) * rect.height * .16, { steps: 8 });
    await page.waitForFunction(() => Number(document.querySelector('.br-fold')?.dataset.progress) > .15);
    assert.equal(await page.evaluate(() => getSelection().toString()), '');
    await page.mouse.up();

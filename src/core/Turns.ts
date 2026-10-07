@@ -40,7 +40,9 @@ export class Turns {
     const context = this.context(); if (this.current || context.zoom !== 1 || context.reducedMotion) return false;
     const rect = this.stage.getBoundingClientRect(), width = rect.width / context.spread;
     const x = point.x - rect.left, y = point.y - rect.top;
-    if (x < 0 || x > rect.width || y < 0 || y > rect.height) return false;
+    // Include the visible border and a small grab area around each outer corner.
+    const tolerance = Math.min(24, width * .1, rect.height * .1);
+    if (x < -tolerance || x > rect.width + tolerance || y < -tolerance || y > rect.height + tolerance) return false;
     const right = x >= (context.spread === 2 ? width : width / 2), localX = right ? x - (rect.width - width) : width - x;
     if (localX < width * .65 || (y > rect.height * .25 && y < rect.height * .75)) return false;
     const forward = right !== context.rtl, target = spreadStart(context.page + (forward ? context.spread : -context.spread), context.count, context.spread);

@@ -99,7 +99,14 @@ export class BookReader {
     if (this.destroyed || this.turning) return;
     const zoom = clampZoom(value); if (zoom === this.zoom) return;
     this.renderer.invalidate(true); this.zoom = zoom; this.dimensions(); this.notify(); this.auto.reset(); clearTimeout(this.zoomTimer);
-    this.zoomTimer = setTimeout(() => { if (!this.destroyed && !this.turning) void this.renderer.pages(visiblePages(this.page, this.source.pageCount, this.spread), this.size, this.zoom).then(() => this.warm()); }, 180);
+    this.zoomTimer = setTimeout(() => { if (!this.destroyed && !this.turning) void this.renderZoom(); }, 180);
+  }
+  private async renderZoom() {
+    const page = this.page, zoom = this.zoom, size = this.size;
+    const prepared = this.renderer.prepare(visiblePages(page, this.source.pageCount, this.spread), size, zoom);
+    await prepared.ready;
+    if (!prepared.isCurrent() || this.destroyed || this.turning || this.page !== page || this.zoom !== zoom || this.size !== size) return;
+    this.renderer.mount(prepared.pages); this.warm();
   }
   setAutoTurn(enabled: boolean, seconds?: number) { if (this.destroyed) return; if (seconds !== undefined) this.auto.setInterval(seconds); this.auto.setEnabled(enabled); }
   private key = (event: KeyboardEvent) => {
